@@ -112,7 +112,6 @@ DifferentialEquationCalculator::adams() const {
 // Function to perform the improved Euler's method (Heun's method)
 std::vector<std::pair<double, double>>
 DifferentialEquationCalculator::extendedEuler() const {
-  std::vector<std::pair<double, double>> points;
   std::vector<std::pair<double, double>> results;
   double x = x0;
   double y = y0;
