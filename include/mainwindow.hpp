@@ -26,7 +26,14 @@ public:
 
 private:
   std::unique_ptr<Ui::MainWindow> ui = std::make_unique<Ui::MainWindow>();
-  void draw_chart(const std::vector<std::pair<double, double>>& points, std::string function);
+  void draw_chart(const std::vector<std::pair<double, double>> &points,
+                  std::string function);
+
+private slots:
+  void on_calculate_clicked();
+  void on_load_clicked();
+  void on_browse_clicked();
+  void on_rb_clicked();
 };
 
 #endif /* FE96EFC8_016F_4D7C_8140_8879DA85361A */

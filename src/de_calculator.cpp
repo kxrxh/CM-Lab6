@@ -2,6 +2,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <qstring.h>
 #include <stdexcept>
 #include <vector>
 
@@ -14,173 +15,146 @@ DifferentialEquationCalculator::DifferentialEquationCalculator(
 
 // Function to find the constant 'c' for the given initial condition
 double DifferentialEquationCalculator::findConstantC() const {
-  double targetY = y0;
+  double target_y = y0;
   double x = x0;
-  double bestC = 0;
-  double minError = std::numeric_limits<double>::infinity();
+  double best_c = 0.0;
+  double min_error = std::numeric_limits<double>::max();
 
-  // Loop through a range of values for 'c' to find the best fit
-  for (int i = -1000; i < 1000; i++) {
-    double c = i * 0.01;
+  // Iterate over a range of possible C values
+  for (int i = -1000; i <= 1000; i++) {
+    double c = i * 0.1; // Adjust range and step as needed
     double y = equation.evaluate_solution(x, c);
-    double calc_error = std::fabs(y - targetY);
+    double _error = std::fabs(y - target_y);
 
-    // Update 'bestC' and 'minError' if a better fit is found
-    if (calc_error < minError) {
-      minError = error;
-      bestC = c;
-      if (calc_error < this->error) {
+    if (_error <= min_error) {
+      min_error = _error;
+      best_c = c;
+
+      if (_error <=
+          this->error) { // Utilize the given tolerance to possibly exit early
         break;
       }
     }
   }
 
-  return bestC;
+  return best_c;
 }
 
 std::vector<std::pair<double, double>>
 DifferentialEquationCalculator::rungeKutta4() const {
-  std::vector<std::pair<double, double>> result;
+  std::vector<std::pair<double, double>> results;
   double x = x0;
   double y = y0;
-
-  result.push_back({x, y});
+  results.emplace_back(x, y);
 
   while (x < xn) {
     double k1 = h * equation.evaluate(x, y);
-    double k2 = h * equation.evaluate(x + h / 2, y + k1 / 2);
-    double k3 = h * equation.evaluate(x + h / 2, y + k2 / 2);
+    double k2 = h * equation.evaluate(x + h / 2.0, y + k1 / 2.0);
+    double k3 = h * equation.evaluate(x + h / 2.0, y + k2 / 2.0);
     double k4 = h * equation.evaluate(x + h, y + k3);
 
-    y = y + (k1 + 2 * k2 + 2 * k3 + k4) / 6;
-    x = x + h;
+    y += (k1 + 2 * k2 + 2 * k3 + k4) / 6.0;
+    x += h;
 
-    result.push_back({x, y});
+    results.emplace_back(x, y);
   }
 
-  return result;
+  return results;
 }
 
 std::vector<std::pair<double, double>>
 DifferentialEquationCalculator::adams() const {
-  std::vector<std::pair<double, double>> result;
-  std::vector<double> x = {x0};
-  std::vector<double> y = {y0};
-  std::vector<double> f = {equation.evaluate(x0, y0)};
+  std::vector<std::pair<double, double>> results;
+  std::vector<double> x_values;
+  std::vector<double> y_values;
+  double x = x0;
+  double y = y0;
 
-  // Initial Runge-Kutta to start Adams-Bashforth
-  while (x.size() < 4) {
-    double lastX = x.back();
-    double lastY = y.back();
+  // Initializing with Runge-Kutta to get the first few values
+  for (int i = 0; i < 4; ++i) {
+    results.emplace_back(x, y);
+    x_values.push_back(x);
+    y_values.push_back(y);
 
-    double k1 = h * equation.evaluate(lastX, lastY);
-    double k2 = h * equation.evaluate(lastX + h / 2, lastY + k1 / 2);
-    double k3 = h * equation.evaluate(lastX + h / 2, lastY + k2 / 2);
-    double k4 = h * equation.evaluate(lastX + h, lastY + k3);
+    double k1 = h * equation.evaluate(x, y);
+    double k2 = h * equation.evaluate(x + h / 2.0, y + k1 / 2.0);
+    double k3 = h * equation.evaluate(x + h / 2.0, y + k2 / 2.0);
+    double k4 = h * equation.evaluate(x + h, y + k3);
 
-    double nextY = lastY + (k1 + 2 * k2 + 2 * k3 + k4) / 6;
-    double nextX = lastX + h;
-
-    x.push_back(nextX);
-    y.push_back(nextY);
-    f.push_back(equation.evaluate(nextX, nextY));
+    y += (k1 + 2 * k2 + 2 * k3 + k4) / 6.0;
+    x += h;
   }
 
-  for (size_t i = 0; i < x.size(); i++) {
-    result.push_back({x[i], y[i]});
+  // Adams-Bashforth method
+  while (x < xn) {
+    double f0 = equation.evaluate(x_values[3], y_values[3]);
+    double f1 = equation.evaluate(x_values[2], y_values[2]);
+    double f2 = equation.evaluate(x_values[1], y_values[1]);
+    double f3 = equation.evaluate(x_values[0], y_values[0]);
+
+    y += h * (55 * f0 - 59 * f1 + 37 * f2 - 9 * f3) / 24.0;
+    x += h;
+
+    results.emplace_back(x, y);
+
+    // Shift the values for the next iteration
+    for (int i = 0; i < 3; ++i) {
+      x_values[i] = x_values[i + 1];
+      y_values[i] = y_values[i + 1];
+    }
+    x_values[3] = x;
+    y_values[3] = y;
   }
 
-  // Adams-Bashforth 4-step method
-  while (x.back() < xn) {
-    double nextX = x.back() + h;
-    double nextY =
-        y.back() + h / 24 * (55 * f[3] - 59 * f[2] + 37 * f[1] - 9 * f[0]);
-
-    x.push_back(nextX);
-    y.push_back(nextY);
-    f.push_back(equation.evaluate(nextX, nextY));
-
-    // Remove the oldest value
-    x.erase(x.begin());
-    y.erase(y.begin());
-    f.erase(f.begin());
-
-    result.push_back({nextX, nextY});
-  }
-
-  return result;
+  return results;
 }
 
 // Function to perform the improved Euler's method (Heun's method)
 std::vector<std::pair<double, double>>
 DifferentialEquationCalculator::extendedEuler() const {
-  std::vector<double> x = {x0};
-  std::vector<double> y = {y0};
+  std::vector<std::pair<double, double>> points;
+  std::vector<std::pair<double, double>> results;
+  double x = x0;
+  double y = y0;
+  results.emplace_back(x, y);
 
-  double step = h;
-  const double n = std::floor((xn - x0) / step);
+  while (x < xn) {
+    double y_next =
+        y +
+        h * equation.evaluate(
+                x, y); // Euler's method to find the approximate next value of y
+    y += h / 2.0 *
+         (equation.evaluate(x, y) +
+          equation.evaluate(x + h,
+                            y_next)); // Correcting using the average of slopes
+    x += h;
 
-  // Perform the improved Euler's method
-  while (true) {
-    for (int i = 1; i <= n; i++) {
-      double k1 = equation.evaluate(x.back(), y.back());
-      double k2 = equation.evaluate(x.back() + step, y.back() + k1 * step);
-
-      x.push_back(x.back() + step);
-      y.push_back(x.back() + step / 2 * (k1 + k2));
-    }
-
-    const double new_step = h / 2;
-
-    std::vector<double> x1 = {x0};
-    std::vector<double> y1 = {y0};
-
-    double n1 = std::floor((xn - x0) / new_step);
-
-    // Perform the improved Euler's method with a smaller step size
-    for (int i = 1; i <= n1; i++) {
-      double lastX = x1.back();
-      double lastY = y1.back();
-
-      double k1 = equation.evaluate(lastX, lastY);
-      double k2 = equation.evaluate(lastX + new_step, lastY + k1 * new_step);
-
-      y1.push_back(lastY + new_step / 2 * (k1 + k2));
-      x1.push_back(lastX + new_step);
-    }
-
-    if (std::fabs(y[1] - y1[1]) / 3.0 <= error) {
-      break;
-    }
-
-    step = new_step;
-    x = x1;
-    y = y1;
+    results.emplace_back(x, y);
   }
 
-  std::vector<std::pair<double, double>> result(x.size());
-  for (int i = 0; i < x.size(); i++) {
-    result[i] = std::make_pair(x[i], y[i]);
-  }
-
-  return result;
+  return results;
 }
 
 std::string DifferentialEquationCalculator::getEquationForC() const {
   double c = findConstantC();
+  std::string result;
   switch (equation.getType()) {
-  case Equation::EquationType::Linear:
-    return "\\frac{x^{2} - x}{2} + 0.25 + \\frac{" + std::to_string(c) +
-           "}{\\exp(2.0 * x)}";
-  case Equation::EquationType::Fraction:
-    return "\\frac{x^3}{2.0} - \\frac{3x^2 + 3x}{4.0} - \\frac{3}{8.0} + "
-           "\\exp(\\frac{" +
-           std::to_string(c) + "}{\\left(2.0x\\right)})";
-  case Equation::EquationType::Triganometric:
-    return std::to_string(c) + " \\times \\exp(\\sin(x))";
+  case Equation::Fraction:
+    result = std::to_string(c) + "\\\\exp(x / 3) - 12x - 36";
+    break;
+  case Equation::Linear:
+    result = std::to_string(c) + "* \\\\exp(x) - x^{2} - 2 * x - 2";
+    break;
+  case Equation::Triganometric:
+    result = std::to_string(c) + " \\\\times \\\\exp(\\\\sin(x))";
+    break;
   default:
-    throw std::invalid_argument("Invalid equation");
+    throw std::runtime_error("Unknown equation type");
   }
+
+  std::replace(result.begin(), result.end(), ',', '.');
+
+  return result;
 }
 
 // Function to solve the differential equation using the specified method
